@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-import pickle
+import pickle #used for serilization and deserilization
 
 train_df = pd.read_csv('python/train_raw.csv')
 test_df  = pd.read_csv('python/test_raw.csv')
