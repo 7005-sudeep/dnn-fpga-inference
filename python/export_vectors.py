@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import os
 
 X_test = np.load('python/X_test.npy')
 y_test = np.load('python/y_test.npy')
@@ -24,57 +25,49 @@ model = TrafficDNN()
 model.load_state_dict(torch.load('python/dnn_model.pt'))
 model.eval()
 
-# Q8.8 fixed point conversion
-def to_fixed(val, int_bits=8, frac_bits=8):
-    scale   = 2 ** frac_bits
-    val     = np.clip(val, -128, 127)
-    fixed   = np.round(val * scale).astype(np.int32)
-    fixed   = np.clip(fixed, -32768, 32767).astype(np.int16)
+def to_fixed(val, frac_bits=8):
+    val   = np.clip(val, -128, 127)
+    fixed = np.round(val * (2 ** frac_bits)).astype(np.int32)
+    fixed = np.clip(fixed, -32768, 32767)
     return fixed
 
-# Take 50 samples
+def to_hex(fixed_array):
+    return ' '.join([f'{int(v) & 0xFFFF:04X}' for v in fixed_array])
+
 N       = 50
 samples = X_test[:N]
 labels  = y_test[:N].astype(int)
-
 classes = ['normal','dos','probe','r2l','u2r']
 
-# Generate test vectors
 print("Generating test vectors...")
-import os
 os.makedirs('test_vectors', exist_ok=True)
 
-with open('test_vectors/inputs.hex', 'w') as fin, \
-     open('test_vectors/labels.hex', 'w') as flab, \
+with open('test_vectors/inputs.hex',       'w') as fin, \
+     open('test_vectors/labels.hex',       'w') as flab, \
      open('test_vectors/expected_out.hex', 'w') as fout:
 
     for i in range(N):
-        x      = samples[i]
-        fixed  = to_fixed(x)
-        x_t    = torch.FloatTensor(x).unsqueeze(0)
+        x     = samples[i]
+        x_t   = torch.FloatTensor(x).unsqueeze(0)
 
         with torch.no_grad():
             logits = model(x_t).numpy()[0]
 
-        pred       = np.argmax(logits)
-        fixed_out  = to_fixed(logits)
+        pred      = np.argmax(logits)
+        fixed_in  = to_fixed(x)
+        fixed_out = to_fixed(logits)
 
-        # Write input features as hex
-        hex_in  = ' '.join([f'{v & 0xFFFF:04X}' for v in fixed])
-        hex_out = ' '.join([f'{v & 0xFFFF:04X}' for v in fixed_out])
-
-        fin.write(hex_in  + '\n')
+        fin.write(to_hex(fixed_in)  + '\n')
         flab.write(f'{labels[i]:02X}\n')
-        fout.write(hex_out + '\n')
+        fout.write(to_hex(fixed_out) + '\n')
 
         if i < 3:
             print(f"\nSample {i}: true={classes[labels[i]]}, pred={classes[pred]}")
-            print(f"  Input hex (first 5): {hex_in.split()[:5]}")
-            print(f"  Output hex: {hex_out}")
+            print(f"  Input hex (first 5): {to_hex(fixed_in).split()[:5]}")
+            print(f"  Output hex: {to_hex(fixed_out)}")
 
 print(f"\nSaved {N} test vectors to test_vectors/")
 
-# Export weights as hex
 print("\nExporting weights...")
 os.makedirs('weights', exist_ok=True)
 
@@ -91,8 +84,4 @@ for name, param in layers:
     fixed = to_fixed(param.flatten())
     with open(f'weights/{name}.hex', 'w') as f:
         for v in fixed:
-            f.write(f'{v & 0xFFFF:04X}\n')
-    print(f"  {name}: shape={param.shape}, saved {len(fixed)} hex values")
-
-print("\nAll weights exported to weights/")
-print("\nDay 7 complete! Week 1 DONE! 🎉")
+            f.write(f'{int(v)
