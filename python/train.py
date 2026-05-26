@@ -2,30 +2,32 @@ import torch
 import torch.nn as nn
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
+from sklearn.metrics import classification_report
 
 X_train = np.load('python/X_train.npy')
 y_train = np.load('python/y_train.npy')
 X_test  = np.load('python/X_test.npy')
 y_test  = np.load('python/y_test.npy')
 
-X_train = torch.FloatTensor(X_train)
-y_train = torch.LongTensor(y_train)
-X_test  = torch.FloatTensor(X_test)
-y_test  = torch.LongTensor(y_test)
+# Remove rows with NaN labels
+mask    = ~np.isnan(y_test.astype(float))
+X_test  = X_test[mask]
+y_test  = y_test[mask]
 
-train_ds = TensorDataset(X_train, y_train)
-test_ds  = TensorDataset(X_test,  y_test)
-train_dl = DataLoader(train_ds, batch_size=256, shuffle=True)
-test_dl  = DataLoader(test_ds,  batch_size=256)
+X_train_t = torch.FloatTensor(X_train)
+y_train_t = torch.LongTensor(y_train)
+X_test_t  = torch.FloatTensor(X_test)
+y_test_t  = torch.LongTensor(y_test)
 
-# Bigger model + dropout
+train_ds = TensorDataset(X_train_t, y_train_t)
+train_dl = DataLoader(train_ds, batch_size=512, shuffle=True)
+
 class TrafficDNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(41, 256), nn.ReLU(), nn.Dropout(0.3),
-            nn.Linear(256, 128), nn.ReLU(), nn.Dropout(0.3),
-            nn.Linear(128, 64),  nn.ReLU(),
+            nn.Linear(41, 128), nn.BatchNorm1d(128), nn.ReLU(),
+            nn.Linear(128, 64), nn.BatchNorm1d(64),  nn.ReLU(),
             nn.Linear(64, 5)
         )
     def forward(self, x):
@@ -33,15 +35,11 @@ class TrafficDNN(nn.Module):
 
 model     = TrafficDNN()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+criterion = nn.CrossEntropyLoss()
 
-# Class weights to fix imbalance
-counts    = np.bincount(y_train.numpy())
-weights   = 1.0 / torch.FloatTensor(counts)
-criterion = nn.CrossEntropyLoss(weight=weights)
-
-# Train for longer
 print("Training...")
-for epoch in range(50):
+for epoch in range(60):
     model.train()
     total_loss = 0
     for xb, yb in train_dl:
@@ -50,22 +48,21 @@ for epoch in range(50):
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
+    scheduler.step()
     if (epoch+1) % 10 == 0:
-        print(f"Epoch {epoch+1}/50 loss: {total_loss/len(train_dl):.4f}")
+        print(f"Epoch {epoch+1}/60 loss: {total_loss/len(train_dl):.4f}")
 
-# Evaluate
 model.eval()
-correct = 0
 with torch.no_grad():
-    for xb, yb in test_dl:
-        preds = model(xb).argmax(dim=1)
-        correct += (preds == yb).sum().item()
+    preds = model(X_test_t).argmax(dim=1).numpy()
 
-acc = correct / len(y_test) * 100
+acc = (preds == y_test).mean() * 100
 print(f"\nTest Accuracy: {acc:.2f}%")
+print("\nPer-class breakdown:")
+print(classification_report(y_test, preds,
+      target_names=['normal','dos','probe','r2l','u2r']))
 
 torch.save(model.state_dict(), 'python/dnn_model.pt')
-print("Model saved: python/dnn_model.pt")
 print("\nLayer shapes:")
 for name, param in model.named_parameters():
     print(f"  {name}: {param.shape}")
