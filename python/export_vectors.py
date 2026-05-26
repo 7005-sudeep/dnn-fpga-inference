@@ -26,11 +26,10 @@ model.eval()
 
 # Q8.8 fixed point conversion
 def to_fixed(val, int_bits=8, frac_bits=8):
-    scale    = 2 ** frac_bits
-    max_val  =  (2 ** (int_bits - 1) - 1) / scale
-    min_val  = -(2 ** (int_bits - 1))     / scale
-    val      = np.clip(val, min_val, max_val)
-    fixed    = np.round(val * scale).astype(np.int16)
+    scale   = 2 ** frac_bits
+    val     = np.clip(val, -128, 127)
+    fixed   = np.round(val * scale).astype(np.int32)
+    fixed   = np.clip(fixed, -32768, 32767).astype(np.int16)
     return fixed
 
 # Take 50 samples
