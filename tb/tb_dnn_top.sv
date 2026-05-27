@@ -9,84 +9,66 @@
     
 //Print final accuracy
       
+module dnn_top (
+    input  logic clk,
+    input  logic rst_n,
+    input  logic start,
+    input  logic signed [15:0] x_in [0:40],
+    output logic signed [15:0] y_out [0:4],
+    output logic done
+);
 
+logic signed [15:0] w1 [0:127][0:40];
+logic signed [15:0] b1 [0:127];
+logic signed [15:0] y1 [0:127];
+logic done1;
 
-timescale 1ns/1ps
-module tb_dnn_top;
-logic clk;
-logic rst_n;
-logic start;
-logic signed [15:0] x_in [0:40];
-logic signed [15:0] y_out [0:4];
-logic done;
-dnn_top dut (
-.clk(clk),
-.rst_n(rst_n),
-.start(start),
-.x_in(x_in),
-.y_out(y_out),
-.done(done));
-initial clk = 0;
-always #5 clk = ~clk;
-logic signed [15:0] test_inputs [0:49][0:40];
-logic signed [15:0] test_outputs [0:49][0:4];
-logic [7:0] test_labels [0:49];
-integer errors = 0;
-integer correct = 0;
-integer i, j;
+logic signed [15:0] w2 [0:63][0:127];
+logic signed [15:0] b2 [0:63];
+logic signed [15:0] y2 [0:63];
+logic done2;
+
+logic signed [15:0] w3 [0:4][0:63];
+logic signed [15:0] b3 [0:4];
+logic done3;
+
+logic start2, start3;
+
+fc_layer #(.IN_SIZE(41), .OUT_SIZE(128)) layer1 (
+.clk(clk),.rst_n(rst_n),.start(start),
+.x_in(x_in),.w_in(w1),.b_in(b1),
+.y_out(y1),.done(done1));
+
+fc_layer #(.IN_SIZE(128), .OUT_SIZE(64)) layer2 (
+.clk(clk),.rst_n(rst_n),.start(start2),
+.x_in(y1),.w_in(w2),.b_in(b2),
+.y_out(y2),.done(done2));
+
+fc_layer #(.IN_SIZE(64), .OUT_SIZE(5)) layer3 (
+.clk(clk),.rst_n(rst_n),.start(start3),
+.x_in(y2),.w_in(w3),.b_in(b3),
+.y_out(y_out),.done(done3));
+
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        start2 <= 0;
+        start3 <= 0;
+        done   <= 0;
+    end
+    else begin
+        start2 <= done1;
+        start3 <= done2;
+        done   <= done3;
+    end
+end
+
 initial begin
-$dumpfile("dump.vcd");
-$dumpvars(0, tb_dnn_top);
-$readmemh("test_vectors/inputs.hex", test_inputs);
-$readmemh("test_vectors/expected_out.hex", test_outputs);
-$readmemh("test_vectors/labels.hex", test_labels);
-rst_n = 0; start = 0;
-@(posedge clk); #1;
-rst_n = 1;
-@(posedge clk); #1;
-$display("=== DNN TOP SELF CHECKING TESTBENCH ===");
-$display("Running 50 test vectors...");
-for (i = 0; i < 50; i++) begin
-for (j = 0; j <= 40; j++) begin
-x_in[j] = test_inputs[i][j];
+    $readmemh("W1.hex", w1);
+    $readmemh("b1.hex", b1);
+    $readmemh("W2.hex", w2);
+    $readmemh("b2.hex", b2);
+    $readmemh("W3.hex", w3);
+    $readmemh("b3.hex", b3);
 end
-start = 1;
-@(posedge clk); #1;
-start = 0;
-wait(done == 1);
-@(posedge clk); #1;
-begin
-logic signed [15:0] max_val;
-integer pred_class;
-integer true_class;
-max_val = y_out[0];
-pred_class = 0;
-for (j = 1; j < 5; j++) begin
-if (y_out[j] > max_val) begin
-max_val = y_out[j];
-pred_class = j;
-end
-end
-true_class = test_labels[i];
-if (pred_class == true_class) begin
-correct++;
-$display("Sample %0d: PASS pred=%0d true=%0d", i, pred_class, true_class);
-end
-else begin
-errors++;
-$display("Sample %0d: FAIL pred=%0d true=%0d", i, pred_class, true_class);
-end
-end
-@(posedge clk); #1;
-end
-$display("================================");
-$display("Results: %0d/50 correct", correct);
-$display("Accuracy: %0d%%", correct*2);
-if (errors == 0)
-$display("ALL 50 SAMPLES PASSED");
-else
-$display("%0d errors found", errors);
-$display("================================");
-$finish;
-end
+
 endmodule
