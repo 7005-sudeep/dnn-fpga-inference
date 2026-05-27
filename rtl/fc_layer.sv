@@ -14,14 +14,13 @@ module fc_layer #(
     input  logic clk,
     input  logic rst_n,
     input  logic start,
-    input  logic signed [15:0] x_in [0:IN_SIZE-1],
-    input  logic signed [15:0] w_in [0:OUT_SIZE-1][0:IN_SIZE-1],
-    input  logic signed [15:0] b_in [0:OUT_SIZE-1],
+    input  logic signed [15:0] x_in  [0:IN_SIZE-1],
+    input  logic signed [15:0] w_in  [0:OUT_SIZE-1][0:IN_SIZE-1],
+    input  logic signed [15:0] b_in  [0:OUT_SIZE-1],
     output logic signed [15:0] y_out [0:OUT_SIZE-1],
     output logic done
 );
 
-    // FSM states
     typedef enum logic [1:0] {
         IDLE    = 2'b00,
         COMPUTE = 2'b01,
@@ -31,11 +30,11 @@ module fc_layer #(
 
     state_t state;
 
-    // Internal signals
-    logic signed [31:0] acc [0:OUT_SIZE-1];
+    logic signed [31:0] acc      [0:OUT_SIZE-1];
+    logic signed [31:0] with_bias;
     logic [$clog2(IN_SIZE):0] cnt;
+    integer n;
 
-    // FSM
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
@@ -52,8 +51,7 @@ module fc_layer #(
                 end
 
                 COMPUTE: begin
-                    // Accumulate one input at a time
-                    for (int n = 0; n < OUT_SIZE; n++) begin
+                    for (n = 0; n < OUT_SIZE; n++) begin
                         if (cnt == 0)
                             acc[n] <= $signed(w_in[n][cnt]) * $signed(x_in[cnt]);
                         else
@@ -65,9 +63,7 @@ module fc_layer #(
                 end
 
                 OUTPUT: begin
-                    // Add bias and apply ReLU, truncate Q16.16 → Q8.8
-                    for (int n = 0; n < OUT_SIZE; n++) begin
-                        logic signed [31:0] with_bias;
+                    for (n = 0; n < OUT_SIZE; n++) begin
                         with_bias = acc[n] + ($signed(b_in[n]) <<< 8);
                         if (with_bias[31] == 1'b1)
                             y_out[n] <= 16'sd0;
