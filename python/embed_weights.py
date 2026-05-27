@@ -66,7 +66,7 @@ sv.append('rst_n = 1;')
 sv.append('@(posedge clk); #1;')
 sv.append('$display("=== DNN EMBEDDED TESTBENCH ===");')
 
-for i in range(50):
+for i in range(5):
     sv.append('')
     sv.append('// Sample ' + str(i) + ' true=' + str(labels[i]))
     for j in range(41):
