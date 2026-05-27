@@ -1,3 +1,5 @@
+https://www.edaplayground.com/x/EsN
+
 # Allocation: Simulator allocated 4549 kB (elbread=427 elab2=4116 kernel=6 sdf=0)
 # KERNEL: ASDB file was created in location /home/runner/dataset.asdb
 # KERNEL: Test 1: 2.0 * 3.0 = 6.0
