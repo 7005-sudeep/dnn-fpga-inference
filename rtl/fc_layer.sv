@@ -1,3 +1,12 @@
+//parameter IN_SIZE=41, OUT_SIZE=128
+//Makes the module reusable — Layer 1 is 41→128, Layer 2 is 128→64, Layer 3 is 64→5. Same module, different parameters
+//$clog2(IN_SIZE) Automatically calculates how many bits needed for counter. log2(41) = 6 bits.
+//x_in [0:IN_SIZE-1] This is your input vector — one network packet's 41 features.
+//w_in [0:OUT_SIZE-1][0:IN_SIZE-1] This is your weight matrix — a 2D array.
+//b_in [0:OUT_SIZE-1] This is your bias vector — one bias per output neuron.
+// y_out [0:OUT_SIZE-1] This is your output vector — result after MAC + bias + ReLU.
+
+
 module fc_layer #(
     parameter IN_SIZE  = 41,
     parameter OUT_SIZE = 128
