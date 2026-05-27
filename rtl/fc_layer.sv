@@ -1,0 +1,80 @@
+module fc_layer #(
+    parameter IN_SIZE  = 41,
+    parameter OUT_SIZE = 128
+)(
+    input  logic clk,
+    input  logic rst_n,
+    input  logic start,
+    input  logic signed [15:0] x_in [0:IN_SIZE-1],
+    input  logic signed [15:0] w_in [0:OUT_SIZE-1][0:IN_SIZE-1],
+    input  logic signed [15:0] b_in [0:OUT_SIZE-1],
+    output logic signed [15:0] y_out [0:OUT_SIZE-1],
+    output logic done
+);
+
+    // FSM states
+    typedef enum logic [1:0] {
+        IDLE    = 2'b00,
+        COMPUTE = 2'b01,
+        OUTPUT  = 2'b10,
+        DONE    = 2'b11
+    } state_t;
+
+    state_t state;
+
+    // Internal signals
+    logic signed [31:0] acc [0:OUT_SIZE-1];
+    logic [$clog2(IN_SIZE):0] cnt;
+
+    // FSM
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state <= IDLE;
+            cnt   <= 0;
+            done  <= 0;
+        end
+        else begin
+            case (state)
+                IDLE: begin
+                    done <= 0;
+                    cnt  <= 0;
+                    if (start)
+                        state <= COMPUTE;
+                end
+
+                COMPUTE: begin
+                    // Accumulate one input at a time
+                    for (int n = 0; n < OUT_SIZE; n++) begin
+                        if (cnt == 0)
+                            acc[n] <= $signed(w_in[n][cnt]) * $signed(x_in[cnt]);
+                        else
+                            acc[n] <= acc[n] + $signed(w_in[n][cnt]) * $signed(x_in[cnt]);
+                    end
+                    cnt <= cnt + 1;
+                    if (cnt == IN_SIZE - 1)
+                        state <= OUTPUT;
+                end
+
+                OUTPUT: begin
+                    // Add bias and apply ReLU, truncate Q16.16 → Q8.8
+                    for (int n = 0; n < OUT_SIZE; n++) begin
+                        logic signed [31:0] with_bias;
+                        with_bias = acc[n] + ($signed(b_in[n]) <<< 8);
+                        if (with_bias[31] == 1'b1)
+                            y_out[n] <= 16'sd0;
+                        else
+                            y_out[n] <= with_bias[23:8];
+                    end
+                    done  <= 1;
+                    state <= DONE;
+                end
+
+                DONE: begin
+                    done  <= 0;
+                    state <= IDLE;
+                end
+            endcase
+        end
+    end
+
+endmodule
