@@ -1,3 +1,11 @@
+--f data_in[31] = 1 → number is negative → output 0
+--If data_in[31] = 0 → number is positive → pass data_in through to output
+--bit31 = 1 → negative number → ReLU kills it → output 0
+--bit31 = 0 → positive number → ReLU passes it → output = input
+
+
+
+
 module relu (
     input  logic clk,
     input  logic rst_n,
